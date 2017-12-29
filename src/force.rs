@@ -26,10 +26,10 @@ impl Default for Body {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Point {
-    x: f32,
-    y: f32,
-    vx: f32,
-    vy: f32,
+    pub x: f32,
+    pub y: f32,
+    pub vx: f32,
+    pub vy: f32,
 }
 
 impl Point {
@@ -44,8 +44,8 @@ impl Point {
 }
 
 pub struct Link {
-    source: usize,
-    target: usize,
+    pub source: usize,
+    pub target: usize,
 }
 
 impl Link {
@@ -58,7 +58,7 @@ impl Link {
 }
 
 pub struct Force {
-    points: Vec<Point>,
+    pub points: Vec<Point>,
 }
 
 fn accumulate(tree: &mut Quadtree<Body>, node_id: NodeId) {
@@ -161,7 +161,7 @@ impl Force {
         }
     }
 
-    pub fn link(&mut self, alpha: f32, links: Vec<Link>) {
+    pub fn link(&mut self, alpha: f32, links: &Vec<Link>) {
         let mut count: HashMap<usize, usize> = HashMap::new();
         for link in links.iter() {
             if !count.contains_key(&link.source) {
@@ -192,8 +192,8 @@ impl Force {
             let target = self.points[link.target];
             let source_count = count.get(&link.source).unwrap();
             let target_count = count.get(&link.target).unwrap();
-            let dx = target.x - source.x;
-            let dy = target.y - source.y;
+            let dx = (target.x + target.vx) - (source.x + source.vx);
+            let dy = (target.y + target.vy) - (source.y + source.vy);
             let l = (dx * dx + dy * dy).sqrt();
             let strength = 1. / *source_count.min(target_count) as f32;
             let w = (l - 30.) / l * alpha * strength;
@@ -207,6 +207,15 @@ impl Force {
                 source.vx += dx * w * (1. - b);
                 source.vy += dy * w * (1. - b);
             }
+        }
+    }
+
+    pub fn center(&mut self) {
+        let cx = self.points.iter().map(|p| p.x).sum::<f32>() / self.points.len() as f32;
+        let cy = self.points.iter().map(|p| p.y).sum::<f32>() / self.points.len() as f32;
+        for point in self.points.iter_mut() {
+            point.x -= cx;
+            point.y -= cy;
         }
     }
 }

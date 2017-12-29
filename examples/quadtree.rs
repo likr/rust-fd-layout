@@ -24,7 +24,7 @@ fn print_circle(x: f32, y: f32, n: usize) {
     )
 }
 
-fn walk(tree: &Quadtree, node_id: NodeId) {
+fn walk(tree: &Quadtree<()>, node_id: NodeId) {
     let rect = tree.rect(node_id);
     print_rect(rect, "none");
     for &(ref e, region) in tree.elements(node_id).iter() {
@@ -43,7 +43,7 @@ fn walk(tree: &Quadtree, node_id: NodeId) {
     }
 }
 
-fn generate(width: f32, height: f32, n: usize) -> Quadtree {
+fn generate(width: f32, height: f32, n: usize) -> Quadtree<()> {
     let mut tree = Quadtree::new(Rect {
         cx: 0.,
         cy: 0.,
@@ -82,5 +82,5 @@ fn main() {
         height / 2. + margin,
     );
     walk(&tree, root);
-    println!("</g></svg>");
+    println!("</g>\n</svg>");
 }

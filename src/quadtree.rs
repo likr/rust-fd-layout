@@ -101,23 +101,24 @@ pub enum Element {
 }
 
 #[derive(Clone, Debug)]
-pub struct Node {
+pub struct Node<T> {
     parent: Option<NodeId>,
     top_left: Box<Element>,
     top_right: Box<Element>,
     bottom_left: Box<Element>,
     bottom_right: Box<Element>,
     rect: Rect,
+    data: T,
 }
 
 #[derive(Clone, Debug)]
-pub struct Quadtree {
+pub struct Quadtree<T> {
     root: NodeId,
-    nodes: Vec<Node>,
+    nodes: Vec<Node<T>>,
 }
 
-impl Node {
-    pub fn new(rect: Rect) -> Node {
+impl<T: Default> Node<T> {
+    pub fn new(rect: Rect) -> Node<T> {
         Node {
             parent: None,
             top_left: Box::new(Element::Empty),
@@ -125,10 +126,11 @@ impl Node {
             bottom_left: Box::new(Element::Empty),
             bottom_right: Box::new(Element::Empty),
             rect: rect,
+            data: T::default(),
         }
     }
 
-    pub fn new_with_parent(rect: Rect, parent: NodeId) -> Node {
+    pub fn new_with_parent(rect: Rect, parent: NodeId) -> Node<T> {
         Node {
             parent: Some(parent),
             top_left: Box::new(Element::Empty),
@@ -136,6 +138,7 @@ impl Node {
             bottom_left: Box::new(Element::Empty),
             bottom_right: Box::new(Element::Empty),
             rect: rect,
+            data: T::default(),
         }
     }
 
@@ -158,10 +161,10 @@ impl Node {
     }
 }
 
-impl Quadtree {
-    pub fn new(rect: Rect) -> Quadtree {
+impl<T: Default> Quadtree<T> {
+    pub fn new(rect: Rect) -> Quadtree<T> {
         let mut nodes = Vec::new();
-        nodes.push(Node::new(rect));
+        nodes.push(Node::<T>::new(rect));
         Quadtree {
             root: NodeId { index: 0 },
             nodes: nodes,
@@ -248,6 +251,10 @@ impl Quadtree {
         self.nodes[u.index].rect
     }
 
+    pub fn element(&self, u: NodeId, region: Region) -> Element {
+        self.nodes[u.index].child(region)
+    }
+
     pub fn elements(&self, u: NodeId) -> [(Box<Element>, Region); 4] {
         let node = &self.nodes[u.index];
         [
@@ -257,16 +264,29 @@ impl Quadtree {
             (node.bottom_right.clone(), Region::BR),
         ]
     }
+
+    pub fn data(&self, u: NodeId) -> &T {
+        &self.nodes[u.index].data
+    }
+
+    pub fn data_mut(&mut self, u: NodeId) -> &mut T {
+        &mut self.nodes[u.index].data
+    }
 }
 
-#[test]
-fn test_find() {
-    let tree = Quadtree::new(Rect {
+#[cfg(test)]
+fn make_tree() -> Quadtree<()> {
+    Quadtree::new(Rect {
         cx: 0.,
         cy: 0.,
         width: 100.,
         height: 100.,
-    });
+    })
+}
+
+#[test]
+fn test_find() {
+    let tree = make_tree();
     let root = tree.root();
     let (node_id, region) = tree.find(root, 10., 10.);
     assert!(node_id.index == 0);
@@ -275,12 +295,7 @@ fn test_find() {
 
 #[test]
 fn test_insert() {
-    let mut tree = Quadtree::new(Rect {
-        cx: 0.,
-        cy: 0.,
-        width: 100.,
-        height: 100.,
-    });
+    let mut tree = make_tree();
     let root = tree.root();
     let (node_id, region) = tree.insert(root, 10., 10.);
     assert!(node_id.index == 0);
@@ -295,15 +310,10 @@ fn test_insert() {
 
 #[test]
 fn test_elements() {
-    let tree = Quadtree::new(Rect {
-        cx: 0.,
-        cy: 0.,
-        width: 100.,
-        height: 100.,
-    });
+    let tree = make_tree();
     let root = tree.root();
-    for e in tree.elements(root) {
-        assert!(match *e {
+    for &(ref e, _) in tree.elements(root).iter() {
+        assert!(match **e {
             Element::Empty => true,
             _ => false,
         });

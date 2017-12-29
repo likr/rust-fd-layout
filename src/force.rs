@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use quadtree::{Quadtree, Rect, NodeId, Element};
 
 #[derive(Copy, Clone, Debug)]
@@ -38,6 +39,20 @@ impl Point {
             y: y,
             vx: 0.,
             vy: 0.,
+        }
+    }
+}
+
+pub struct Link {
+    source: usize,
+    target: usize,
+}
+
+impl Link {
+    pub fn new(source: usize, target: usize) -> Link {
+        Link {
+            source: source,
+            target: target,
         }
     }
 }
@@ -145,6 +160,55 @@ impl Force {
             apply_many_body(&mut point, &tree, root, alpha, 0.81);
         }
     }
+
+    pub fn link(&mut self, alpha: f32, links: Vec<Link>) {
+        let mut count: HashMap<usize, usize> = HashMap::new();
+        for link in links.iter() {
+            if !count.contains_key(&link.source) {
+                count.insert(link.source, 0);
+            }
+            if !count.contains_key(&link.target) {
+                count.insert(link.target, 0);
+            }
+            {
+                let v = count.get_mut(&link.source).unwrap();
+                *v += 1;
+            }
+            {
+                let v = count.get_mut(&link.target).unwrap();
+                *v += 1;
+            }
+        }
+        let bias = links
+            .iter()
+            .map(|link| {
+                let source_count = *count.get(&link.source).unwrap();
+                let target_count = *count.get(&link.target).unwrap();
+                source_count as f32 / (source_count + target_count) as f32
+            })
+            .collect::<Vec<f32>>();
+        for (link, b) in links.iter().zip(bias.iter()) {
+            let source = self.points[link.source];
+            let target = self.points[link.target];
+            let source_count = count.get(&link.source).unwrap();
+            let target_count = count.get(&link.target).unwrap();
+            let dx = target.x - source.x;
+            let dy = target.y - source.y;
+            let l = (dx * dx + dy * dy).sqrt();
+            let strength = 1. / *source_count.min(target_count) as f32;
+            let w = (l - 30.) / l * alpha * strength;
+            {
+                let ref mut target = self.points[link.target];
+                target.vx -= dx * w * b;
+                target.vy -= dy * w * b;
+            }
+            {
+                let ref mut source = self.points[link.source];
+                source.vx += dx * w * (1. - b);
+                source.vy += dy * w * (1. - b);
+            }
+        }
+    }
 }
 
 #[test]
@@ -163,4 +227,27 @@ fn test_many_body() {
     assert!(force.points[2].vy == 2.25);
     assert!(force.points[3].vx == -2.25);
     assert!(force.points[3].vy == -2.25);
+}
+
+#[test]
+fn test_link() {
+    let mut force = Force::new();
+    force.points.push(Point::new(10., 10.));
+    force.points.push(Point::new(10., -10.));
+    force.points.push(Point::new(-10., 10.));
+    force.points.push(Point::new(-10., -10.));
+    let mut links = Vec::new();
+    links.push(Link::new(0, 1));
+    links.push(Link::new(1, 3));
+    links.push(Link::new(3, 2));
+    links.push(Link::new(2, 0));
+    force.link(1., links);
+    assert!(force.points[0].vx == 2.5);
+    assert!(force.points[0].vy == 2.5);
+    assert!(force.points[1].vx == 2.5);
+    assert!(force.points[1].vy == -2.5);
+    assert!(force.points[2].vx == -2.5);
+    assert!(force.points[2].vy == 2.5);
+    assert!(force.points[3].vx == -2.5);
+    assert!(force.points[3].vy == -2.5);
 }

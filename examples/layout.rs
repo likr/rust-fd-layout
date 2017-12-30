@@ -6,6 +6,7 @@ use fd_layout::many_body_force::ManyBodyForce;
 use fd_layout::link_force::LinkForce;
 use fd_layout::center_force::CenterForce;
 use fd_layout::simulation::Simulation;
+use fd_layout::edge_bundling::edge_bundling;
 
 fn main() {
     let mut points = Vec::new();
@@ -278,6 +279,7 @@ fn main() {
     simulation.add_force(LinkForce::new(&links));
     simulation.add_force(CenterForce::new());
     simulation.run(&mut points);
+    let lines = edge_bundling(&points, &links);
 
     let width = 800.;
     let height = 800.;
@@ -291,18 +293,20 @@ fn main() {
         width / 2. + margin,
         height / 2. + margin,
     );
-    for link in links.iter() {
-        let x1 = points[link.source].x;
-        let y1 = points[link.source].y;
-        let x2 = points[link.target].x;
-        let y2 = points[link.target].y;
-        println!(
-            "<line x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\" stroke=\"#888\" />",
-            x1,
-            x2,
-            y1,
-            y2
-        );
+    for line in lines.iter() {
+        for i in 1..line.points.len() {
+            let x1 = line.points[(i - 1) as usize].x;
+            let y1 = line.points[(i - 1) as usize].y;
+            let x2 = line.points[i as usize].x;
+            let y2 = line.points[i as usize].y;
+            println!(
+                "<line x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\" stroke=\"#888\" />",
+                x1,
+                x2,
+                y1,
+                y2
+            );
+        }
     }
     for point in points.iter() {
         println!(

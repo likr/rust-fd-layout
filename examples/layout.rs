@@ -1,18 +1,20 @@
 extern crate fd_layout;
 
 use std::f32;
-
 use fd_layout::force::{Point, Link, Force};
+use fd_layout::many_body_force::ManyBodyForce;
+use fd_layout::link_force::LinkForce;
+use fd_layout::center_force::CenterForce;
 
 fn main() {
-    let mut force = Force::new();
+    let mut points = Vec::new();
     let n = 77;
     for i in 0..n {
-        let r = (i as f32).sqrt();
-        let theta = f32::consts::PI * (3. - (5. as f32).sqrt()) * (i as f32);
+        let r = (i as usize as f32).sqrt();
+        let theta = f32::consts::PI * (3. - (5. as f32).sqrt()) * (i as usize as f32);
         let x = r * theta.cos();
         let y = r * theta.sin();
-        force.points.push(Point::new(x, y));
+        points.push(Point::new(x, y));
     }
     let mut links = Vec::new();
     links.push(Link::new(1, 0));
@@ -269,6 +271,11 @@ fn main() {
     links.push(Link::new(76, 62));
     links.push(Link::new(76, 48));
     links.push(Link::new(76, 58));
+
+    let many_body_force = ManyBodyForce::new();
+    let link_force = LinkForce::new(&links);
+    let center_force = CenterForce::new();
+
     let mut alpha = 1.;
     let alpha_min = 0.001;
     let alpha_decay = 1. - (alpha_min as f32).powf(1. / 300.);
@@ -276,10 +283,10 @@ fn main() {
     let velocity_decay = 0.6;
     loop {
         alpha += (alpha_target - alpha) * alpha_decay;
-        force.link(alpha, &links);
-        force.many_body(alpha);
-        force.center();
-        for point in force.points.iter_mut() {
+        link_force.apply(&mut points, alpha);
+        many_body_force.apply(&mut points, alpha);
+        center_force.apply(&mut points, alpha);
+        for point in points.iter_mut() {
             point.vx *= velocity_decay;
             point.x += point.vx;
             point.vy *= velocity_decay;
@@ -303,10 +310,10 @@ fn main() {
         height / 2. + margin,
     );
     for link in links.iter() {
-        let x1 = force.points[link.source].x;
-        let y1 = force.points[link.source].y;
-        let x2 = force.points[link.target].x;
-        let y2 = force.points[link.target].y;
+        let x1 = points[link.source].x;
+        let y1 = points[link.source].y;
+        let x2 = points[link.target].x;
+        let y2 = points[link.target].y;
         println!(
             "<line x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\" stroke=\"#888\" />",
             x1,
@@ -315,7 +322,7 @@ fn main() {
             y2
         );
     }
-    for point in force.points.iter() {
+    for point in points.iter() {
         println!(
             "<circle cx=\"{}\" cy=\"{}\" r=\"5\" fill=\"green\" />",
             point.x,

@@ -5,6 +5,7 @@ use fd_layout::force::{Point, Link, Force};
 use fd_layout::many_body_force::ManyBodyForce;
 use fd_layout::link_force::LinkForce;
 use fd_layout::center_force::CenterForce;
+use fd_layout::simulation::Simulation;
 
 fn main() {
     let mut points = Vec::new();
@@ -272,30 +273,11 @@ fn main() {
     links.push(Link::new(76, 48));
     links.push(Link::new(76, 58));
 
-    let many_body_force = ManyBodyForce::new();
-    let link_force = LinkForce::new(&links);
-    let center_force = CenterForce::new();
-
-    let mut alpha = 1.;
-    let alpha_min = 0.001;
-    let alpha_decay = 1. - (alpha_min as f32).powf(1. / 300.);
-    let alpha_target = 0.;
-    let velocity_decay = 0.6;
-    loop {
-        alpha += (alpha_target - alpha) * alpha_decay;
-        link_force.apply(&mut points, alpha);
-        many_body_force.apply(&mut points, alpha);
-        center_force.apply(&mut points, alpha);
-        for point in points.iter_mut() {
-            point.vx *= velocity_decay;
-            point.x += point.vx;
-            point.vy *= velocity_decay;
-            point.y += point.vy;
-        }
-        if alpha < alpha_min {
-            break;
-        }
-    }
+    let mut simulation = Simulation::new();
+    simulation.add_force(ManyBodyForce::new());
+    simulation.add_force(LinkForce::new(&links));
+    simulation.add_force(CenterForce::new());
+    simulation.run(&mut points);
 
     let width = 800.;
     let height = 800.;

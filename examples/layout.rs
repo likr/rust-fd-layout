@@ -300,7 +300,7 @@ fn main() {
             let x2 = line.points[i as usize].x;
             let y2 = line.points[i as usize].y;
             println!(
-                "<line x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\" stroke=\"#888\" />",
+                "<line x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\" stroke=\"#000\" opacity=\"0.3\" />",
                 x1,
                 x2,
                 y1,

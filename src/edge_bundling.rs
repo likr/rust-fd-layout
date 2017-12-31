@@ -34,6 +34,12 @@ impl Force for EdgeBundlingForce {
     fn apply(&self, _points: &mut Vec<Point>, _alpha: f32) {}
 }
 
+fn distance(p1x: f32, p1y: f32, p2x: f32, p2y: f32) -> f32 {
+    let dx = p2x - p1x;
+    let dy = p2y - p1y;
+    (dx * dx + dy * dy).sqrt()
+}
+
 pub fn edge_bundling(points: &Vec<Point>, links: &Vec<Link>) -> Vec<Line> {
     let mut mid_points = Vec::new();
     let mut segments: Vec<LineSegment> = links
@@ -41,9 +47,9 @@ pub fn edge_bundling(points: &Vec<Point>, links: &Vec<Link>) -> Vec<Line> {
         .map(|link| LineSegment::new(link.source, link.target))
         .collect();
 
-    let mut num_iter = 50;
-    let mut alpha = 0.04;
-    for cycle in 0..5 {
+    let mut num_iter = 90;
+    let mut alpha = 0.1;
+    for cycle in 0..6 {
         let dp = (2 as i32).pow(cycle);
         for segment in segments.iter_mut() {
             for j in 0..dp {
@@ -65,15 +71,21 @@ pub fn edge_bundling(points: &Vec<Point>, links: &Vec<Link>) -> Vec<Line> {
             }
         }
 
-        for point in mid_points.iter_mut() {
-            point.vx = 0.;
-            point.vy = 0.;
-        }
-
         let num_p = dp * 2 - 1;
-        let kp = 0.01 / num_p as usize as f32;
         for _ in 0..num_iter {
+            for point in mid_points.iter_mut() {
+                point.vx = 0.;
+                point.vy = 0.;
+            }
+
             for segment in segments.iter() {
+                let d = distance(
+                    points[segment.source].x,
+                    points[segment.source].y,
+                    points[segment.target].x,
+                    points[segment.target].y,
+                );
+                let kp = 0.1 / (num_p as usize as f32) / d;
                 let n = segment.point_indices.len();
                 for i in 0..n {
                     let p0 = if i == 0 {
@@ -81,22 +93,14 @@ pub fn edge_bundling(points: &Vec<Point>, links: &Vec<Link>) -> Vec<Line> {
                     } else {
                         mid_points[segment.point_indices[i - 1]]
                     };
-                    let p1 = mid_points[segment.point_indices[i]];
                     let p2 = if i == n - 1 {
                         points[segment.target]
                     } else {
                         mid_points[segment.point_indices[i + 1]]
                     };
-                    let dp0x = p0.x - p1.x;
-                    let dp0y = p0.y - p1.y;
-                    let dp2x = p2.x - p1.x;
-                    let dp2y = p2.y - p1.y;
-                    let w0 = (dp0x * dp0x + dp0y * dp0y).sqrt();
-                    let w2 = (dp2x * dp2x + dp2y * dp2y).sqrt();
-                    mid_points[segment.point_indices[i]].vx += alpha * kp *
-                        (w0 * dp0y.atan2(dp0x).cos() + w2 * dp2y.atan2(dp2x).cos());
-                    mid_points[segment.point_indices[i]].vy += alpha * kp *
-                        (w0 * dp0y.atan2(dp0x).sin() + w2 * dp2y.atan2(dp2x).sin());
+                    let ref mut p1 = mid_points[segment.point_indices[i]];
+                    p1.vx += alpha * kp * (p0.x - p1.x + p2.x - p1.x);
+                    p1.vy += alpha * kp * (p0.y - p1.y + p2.y - p1.y);
                 }
             }
 
@@ -113,41 +117,75 @@ pub fn edge_bundling(points: &Vec<Point>, links: &Vec<Link>) -> Vec<Line> {
                     let q2x = points[segment_q.target].x;
                     let q1y = points[segment_q.source].y;
                     let q2y = points[segment_q.target].y;
-                    let dpx = p2x - p1x;
-                    let dpy = p2y - p1y;
-                    let dqx = q2x - q1x;
-                    let dqy = q2y - q1y;
-                    let pq = dpx * dqx + dpy * dqy;
-                    let p2 = (dpx * dpx + dpy * dpy).sqrt();
-                    let q2 = (dqx * dqx + dqy * dqy).sqrt();
-                    let c_a = pq / p2 / q2;
+                    let p2 = distance(p1x, p1y, p2x, p2y);
+                    let q2 = distance(q1x, q1y, q2x, q2y);
                     let l_avg = (p2 + q2) / 2.;
+                    let pmx = (p1x + p2x) / 2.;
+                    let pmy = (p1y + p2y) / 2.;
+                    let qmx = (q1x + q2x) / 2.;
+                    let qmy = (q1y + q2y) / 2.;
+                    let c_a = {
+                        let pq = (p2x - p1x) * (q2x - q1x) + (p2y - p1y) * (q2y - q1y);
+                        (pq / p2 / q2).abs()
+                    };
                     let c_s = 2. / (l_avg / p2.min(q2) + p2.max(q2) / l_avg);
-                    let pmx = mid_points[segment_p.point_indices[(num_p / 2) as usize]].x;
-                    let pmy = mid_points[segment_p.point_indices[(num_p / 2) as usize]].y;
-                    let qmx = mid_points[segment_q.point_indices[(num_p / 2) as usize]].x;
-                    let qmy = mid_points[segment_q.point_indices[(num_p / 2) as usize]].y;
-                    let dmx = pmx - qmx;
-                    let dmy = pmy - qmy;
-                    let mpq2 = (dmx * dmx + dmy * dmy).sqrt();
-                    let c_p = l_avg / (l_avg + mpq2);
-                    let c_e = c_a * c_s * c_p;
+                    let c_p = {
+                        let mpq2 = distance(pmx, pmy, qmx, qmy);
+                        l_avg / (l_avg + mpq2)
+                    };
+                    let c_v = {
+                        let vp = {
+                            let i0r = ((p1y - q1y) * (p1y - p2y) - (p1x - q1x) * (p2x - p1x)) /
+                                p2 / p2;
+                            let i0x = p1x + i0r * (p2x - p1x);
+                            let i0y = p1y + i0r * (p2y - p1y);
+                            let i1r = ((p1y - q2y) * (p1y - p2y) - (p1x - q2x) * (p2x - p1x)) /
+                                p2 / p2;
+                            let i1x = p1x + i1r * (p2x - p1x);
+                            let i1y = p1y + i1r * (p2y - p1y);
+                            let imx = (i0x + i1x) / 2.;
+                            let imy = (i0y + i1y) / 2.;
+                            (1. - 2. * distance(pmx, pmy, imx, imy) / distance(i0x, i0y, i1x, i1y))
+                                .max(0.0)
+                        };
+                        let vq = {
+                            let i0r = ((q1y - p1y) * (q1y - q2y) - (q1x - p1x) * (q2x - q1x)) /
+                                q2 / q2;
+                            let i0x = q1x + i0r * (q2x - q1x);
+                            let i0y = q1y + i0r * (q2y - q1y);
+                            let i1r = ((q1y - p2y) * (q1y - q2y) - (q1x - p2x) * (q2x - q1x)) /
+                                q2 / q2;
+                            let i1x = q1x + i1r * (q2x - q1x);
+                            let i1y = q1y + i1r * (q2y - q1y);
+                            let imx = (i0x + i1x) / 2.;
+                            let imy = (i0y + i1y) / 2.;
+                            (1. - 2. * distance(qmx, qmy, imx, imy) / distance(i0x, i0y, i1x, i1y))
+                                .max(0.0)
+                        };
+                        vp.min(vq)
+                    };
+                    let c_e = c_a * c_s * c_p * c_v;
+                    if c_e < 0.6 {
+                        continue;
+                    }
                     for i in 0..num_p {
                         let pi = mid_points[segment_p.point_indices[i as usize]];
                         let qi = mid_points[segment_q.point_indices[i as usize]];
                         let dx = qi.x - pi.x;
                         let dy = qi.y - pi.y;
-                        let dx = if dx.abs() < 1. { 1. } else { dx };
-                        let dy = if dy.abs() < 1. { 1. } else { dy };
-                        let w = alpha * c_e / (dx * dx + dy * dy).sqrt();
-                        mid_points[segment_q.point_indices[i as usize]].vx -= w *
-                            dy.atan2(dx).cos();
-                        mid_points[segment_q.point_indices[i as usize]].vy -= w *
-                            dy.atan2(dx).sin();
-                        mid_points[segment_p.point_indices[i as usize]].vx += w *
-                            dy.atan2(dx).cos();
-                        mid_points[segment_p.point_indices[i as usize]].vy += w *
-                            dy.atan2(dx).sin();
+                        if dx.abs() > 1e-6 && dy.abs() > 1e-6 {
+                            let w = alpha / (dx * dx + dy * dy).sqrt();
+                            {
+                                let ref mut qi = mid_points[segment_q.point_indices[i as usize]];
+                                qi.vx -= dx * w;
+                                qi.vy -= dy * w;
+                            }
+                            {
+                                let ref mut pi = mid_points[segment_p.point_indices[i as usize]];
+                                pi.vx += dx * w;
+                                pi.vy += dy * w;
+                            }
+                        }
                     }
                 }
             }

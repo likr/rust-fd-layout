@@ -294,19 +294,15 @@ fn main() {
         height / 2. + margin,
     );
     for line in lines.iter() {
-        for i in 1..line.points.len() {
-            let x1 = line.points[(i - 1) as usize].x;
-            let y1 = line.points[(i - 1) as usize].y;
-            let x2 = line.points[i as usize].x;
-            let y2 = line.points[i as usize].y;
-            println!(
-                "<line x1=\"{}\" x2=\"{}\" y1=\"{}\" y2=\"{}\" stroke=\"#000\" opacity=\"0.3\" />",
-                x1,
-                x2,
-                y1,
-                y2
-            );
-        }
+        let d = line.points
+            .iter()
+            .map(|p| format!("{} {}", p.x, p.y))
+            .collect::<Vec<_>>()
+            .join(" L ");
+        println!(
+            "<path d=\"M {}\" fill=\"none\" stroke=\"#999\" opacity=\"0.3\" />",
+            d
+        );
     }
     for point in points.iter() {
         println!(

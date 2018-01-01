@@ -40,6 +40,55 @@ fn distance(p1x: f32, p1y: f32, p2x: f32, p2y: f32) -> f32 {
     (dx * dx + dy * dy).sqrt()
 }
 
+fn compatibility(p1: Point, p2: Point, q1: Point, q2: Point) -> f32 {
+    let p_norm = distance(p1.x, p1.y, p2.x, p2.y);
+    let q_norm = distance(q1.x, q1.y, q2.x, q2.y);
+    let l_avg = (p_norm + q_norm) / 2.;
+    let pmx = (p1.x + p2.x) / 2.;
+    let pmy = (p1.y + p2.y) / 2.;
+    let qmx = (q1.x + q2.x) / 2.;
+    let qmy = (q1.y + q2.y) / 2.;
+    let c_a = {
+        let pq = (p2.x - p1.x) * (q2.x - q1.x) + (p2.y - p1.y) * (q2.y - q1.y);
+        (pq / p_norm / q_norm).abs()
+    };
+    let c_s = 2. / (l_avg / p_norm.min(q_norm) + p_norm.max(q_norm) / l_avg);
+    let c_p = {
+        let mpq2 = distance(pmx, pmy, qmx, qmy);
+        l_avg / (l_avg + mpq2)
+    };
+    let c_v = {
+        let vp = {
+            let i0r = ((p1.y - q1.y) * (p1.y - p2.y) - (p1.x - q1.x) * (p2.x - p1.x)) / p_norm /
+                p_norm;
+            let i0x = p1.x + i0r * (p2.x - p1.x);
+            let i0y = p1.y + i0r * (p2.y - p1.y);
+            let i1r = ((p1.y - q2.y) * (p1.y - p2.y) - (p1.x - q2.x) * (p2.x - p1.x)) / p_norm /
+                p_norm;
+            let i1x = p1.x + i1r * (p2.x - p1.x);
+            let i1y = p1.y + i1r * (p2.y - p1.y);
+            let imx = (i0x + i1x) / 2.;
+            let imy = (i0y + i1y) / 2.;
+            (1. - 2. * distance(pmx, pmy, imx, imy) / distance(i0x, i0y, i1x, i1y)).max(0.0)
+        };
+        let vq = {
+            let i0r = ((q1.y - p1.y) * (q1.y - q2.y) - (q1.x - p1.x) * (q2.x - q1.x)) / q_norm /
+                q_norm;
+            let i0x = q1.x + i0r * (q2.x - q1.x);
+            let i0y = q1.y + i0r * (q2.y - q1.y);
+            let i1r = ((q1.y - p2.y) * (q1.y - q2.y) - (q1.x - p2.x) * (q2.x - q1.x)) / q_norm /
+                q_norm;
+            let i1x = q1.x + i1r * (q2.x - q1.x);
+            let i1y = q1.y + i1r * (q2.y - q1.y);
+            let imx = (i0x + i1x) / 2.;
+            let imy = (i0y + i1y) / 2.;
+            (1. - 2. * distance(qmx, qmy, imx, imy) / distance(i0x, i0y, i1x, i1y)).max(0.0)
+        };
+        vp.min(vq)
+    };
+    c_a * c_s * c_p * c_v
+}
+
 pub fn edge_bundling(points: &Vec<Point>, links: &Vec<Link>) -> Vec<Line> {
     let mut mid_points = Vec::new();
     let mut segments: Vec<LineSegment> = links
@@ -49,6 +98,28 @@ pub fn edge_bundling(points: &Vec<Point>, links: &Vec<Link>) -> Vec<Line> {
 
     let mut num_iter = 90;
     let mut alpha = 0.1;
+
+    let edge_pairs = {
+        let mut edge_pairs = Vec::new();
+        let m = segments.len();
+        for p in 0..m {
+            let segment_p = &segments[p];
+            for q in (p + 1)..m {
+                let segment_q = &segments[q];
+                let c_e = compatibility(
+                    points[segment_p.source],
+                    points[segment_p.target],
+                    points[segment_q.source],
+                    points[segment_q.target],
+                );
+                if c_e >= 0.6 {
+                    edge_pairs.push((p, q));
+                }
+            }
+        }
+        edge_pairs
+    };
+
     for cycle in 0..6 {
         let dp = (2 as i32).pow(cycle);
         for segment in segments.iter_mut() {
@@ -104,87 +175,25 @@ pub fn edge_bundling(points: &Vec<Point>, links: &Vec<Link>) -> Vec<Line> {
                 }
             }
 
-            let m = segments.len();
-            for p in 0..m {
+            for &(p, q) in edge_pairs.iter() {
                 let segment_p = &segments[p];
-                for q in (p + 1)..m {
-                    let segment_q = &segments[q];
-                    let p1x = points[segment_p.source].x;
-                    let p2x = points[segment_p.target].x;
-                    let p1y = points[segment_p.source].y;
-                    let p2y = points[segment_p.target].y;
-                    let q1x = points[segment_q.source].x;
-                    let q2x = points[segment_q.target].x;
-                    let q1y = points[segment_q.source].y;
-                    let q2y = points[segment_q.target].y;
-                    let p2 = distance(p1x, p1y, p2x, p2y);
-                    let q2 = distance(q1x, q1y, q2x, q2y);
-                    let l_avg = (p2 + q2) / 2.;
-                    let pmx = (p1x + p2x) / 2.;
-                    let pmy = (p1y + p2y) / 2.;
-                    let qmx = (q1x + q2x) / 2.;
-                    let qmy = (q1y + q2y) / 2.;
-                    let c_a = {
-                        let pq = (p2x - p1x) * (q2x - q1x) + (p2y - p1y) * (q2y - q1y);
-                        (pq / p2 / q2).abs()
-                    };
-                    let c_s = 2. / (l_avg / p2.min(q2) + p2.max(q2) / l_avg);
-                    let c_p = {
-                        let mpq2 = distance(pmx, pmy, qmx, qmy);
-                        l_avg / (l_avg + mpq2)
-                    };
-                    let c_v = {
-                        let vp = {
-                            let i0r = ((p1y - q1y) * (p1y - p2y) - (p1x - q1x) * (p2x - p1x)) /
-                                p2 / p2;
-                            let i0x = p1x + i0r * (p2x - p1x);
-                            let i0y = p1y + i0r * (p2y - p1y);
-                            let i1r = ((p1y - q2y) * (p1y - p2y) - (p1x - q2x) * (p2x - p1x)) /
-                                p2 / p2;
-                            let i1x = p1x + i1r * (p2x - p1x);
-                            let i1y = p1y + i1r * (p2y - p1y);
-                            let imx = (i0x + i1x) / 2.;
-                            let imy = (i0y + i1y) / 2.;
-                            (1. - 2. * distance(pmx, pmy, imx, imy) / distance(i0x, i0y, i1x, i1y))
-                                .max(0.0)
-                        };
-                        let vq = {
-                            let i0r = ((q1y - p1y) * (q1y - q2y) - (q1x - p1x) * (q2x - q1x)) /
-                                q2 / q2;
-                            let i0x = q1x + i0r * (q2x - q1x);
-                            let i0y = q1y + i0r * (q2y - q1y);
-                            let i1r = ((q1y - p2y) * (q1y - q2y) - (q1x - p2x) * (q2x - q1x)) /
-                                q2 / q2;
-                            let i1x = q1x + i1r * (q2x - q1x);
-                            let i1y = q1y + i1r * (q2y - q1y);
-                            let imx = (i0x + i1x) / 2.;
-                            let imy = (i0y + i1y) / 2.;
-                            (1. - 2. * distance(qmx, qmy, imx, imy) / distance(i0x, i0y, i1x, i1y))
-                                .max(0.0)
-                        };
-                        vp.min(vq)
-                    };
-                    let c_e = c_a * c_s * c_p * c_v;
-                    if c_e < 0.6 {
-                        continue;
-                    }
-                    for i in 0..num_p {
-                        let pi = mid_points[segment_p.point_indices[i as usize]];
-                        let qi = mid_points[segment_q.point_indices[i as usize]];
-                        let dx = qi.x - pi.x;
-                        let dy = qi.y - pi.y;
-                        if dx.abs() > 1e-6 && dy.abs() > 1e-6 {
-                            let w = alpha / (dx * dx + dy * dy).sqrt();
-                            {
-                                let ref mut qi = mid_points[segment_q.point_indices[i as usize]];
-                                qi.vx -= dx * w;
-                                qi.vy -= dy * w;
-                            }
-                            {
-                                let ref mut pi = mid_points[segment_p.point_indices[i as usize]];
-                                pi.vx += dx * w;
-                                pi.vy += dy * w;
-                            }
+                let segment_q = &segments[q];
+                for i in 0..num_p {
+                    let pi = mid_points[segment_p.point_indices[i as usize]];
+                    let qi = mid_points[segment_q.point_indices[i as usize]];
+                    let dx = qi.x - pi.x;
+                    let dy = qi.y - pi.y;
+                    if dx.abs() > 1e-6 && dy.abs() > 1e-6 {
+                        let w = alpha / (dx * dx + dy * dy).sqrt();
+                        {
+                            let ref mut qi = mid_points[segment_q.point_indices[i as usize]];
+                            qi.vx -= dx * w;
+                            qi.vy -= dy * w;
+                        }
+                        {
+                            let ref mut pi = mid_points[segment_p.point_indices[i as usize]];
+                            pi.vx += dx * w;
+                            pi.vy += dy * w;
                         }
                     }
                 }

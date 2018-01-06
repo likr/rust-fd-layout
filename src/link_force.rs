@@ -49,8 +49,8 @@ impl Force for LinkForce {
             let dx = target.x - source.x;
             let dy = target.y - source.y;
             let l = (dx * dx + dy * dy).sqrt();
-            let strength = 1. / *source_count.min(target_count) as f32;
-            let w = (l - 30.) / l * alpha * strength;
+            let strength = link.strength / *source_count.min(target_count) as f32;
+            let w = (l - link.length) / l * alpha * strength;
             {
                 let ref mut target = points[link.target];
                 target.vx -= dx * w * b;

@@ -63,11 +63,14 @@ fn main() {
         .collect::<Vec<_>>();
 
     eprintln!("start");
-    let mut simulation = Simulation::new();
-    simulation.add_force(ManyBodyForce::new());
-    simulation.add_force(LinkForce::new(&links));
-    simulation.add_force(CenterForce::new());
-    simulation.run(&mut points);
+    let forces = {
+        let mut forces = Vec::new();
+        forces.push(Box::new(ManyBodyForce::new()));
+        forces.push(Box::new(LinkForce::new(&links)));
+        forces.push(Box::new(CenterForce::new()));
+        forces
+    };
+    start_simulation(&mut points, &forces);
     eprintln!("bundling edges");
     let lines = edge_bundling(&points, &links);
 

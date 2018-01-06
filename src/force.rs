@@ -21,6 +21,8 @@ impl Point {
 pub struct Link {
     pub source: usize,
     pub target: usize,
+    pub length: f32,
+    pub strength: f32,
 }
 
 impl Link {
@@ -28,6 +30,8 @@ impl Link {
         Link {
             source: source,
             target: target,
+            length: 30.,
+            strength: 1.,
         }
     }
 }

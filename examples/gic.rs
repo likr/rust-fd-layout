@@ -14,7 +14,6 @@ use fd_layout::edge_bundling::edge_bundling;
 
 #[derive(Serialize, Deserialize)]
 struct NodeData {
-    name: usize,
     group: usize,
 }
 
@@ -130,7 +129,7 @@ fn main() {
             "<svg version=\"1.1\" width=\"{}\" height=\"{}\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">",
             width + margin * 2., height + margin * 2.,
             );
-        let circle = graph.groups.last().unwrap();
+        let circle = &graph.groups[0];
         println!(
             "<g transform=\"translate({},{})scale({})translate({},{})\">",
             width / 2. + margin,

@@ -6,6 +6,7 @@ extern crate serde;
 extern crate serde_json;
 extern crate fd_layout;
 
+use std::str::FromStr;
 use fd_layout::force::{Point, Link, Force};
 use fd_layout::link_force::LinkForce;
 use fd_layout::group_force::{Group, GroupForce};
@@ -42,17 +43,21 @@ fn main() {
     let args = std::env::args().collect::<Vec<_>>();
     let mut opts = getopts::Options::new();
     opts.reqopt("f", "file", "input filename", "FILENAME");
+    opts.optopt("s", "scale", "scale", "SCALE");
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
         Err(f) => panic!(f.to_string()),
     };
     let filename = matches.opt_str("f").unwrap();
+    let scale = match matches.opt_str("s") {
+        Some(s) => f32::from_str(&s).ok().unwrap(),
+        None => 5.,
+    };
 
     let path = std::path::Path::new(&filename);
     let file = std::fs::File::open(&path).unwrap();
     let mut graph: GraphData = serde_json::from_reader(&file).unwrap();
 
-    let scale = 5.;
     for group in graph.groups.iter_mut() {
         group.x += group.dx / 2.;
         group.y += group.dy / 2.;
@@ -121,8 +126,8 @@ fn main() {
     for point in points.iter() {
         println!(
             "{}\t{}",
-            point.x,
-            point.y,
+            point.x / scale,
+            point.y / scale,
         );
     }
 }

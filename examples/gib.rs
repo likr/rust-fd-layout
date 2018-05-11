@@ -30,6 +30,7 @@ struct GroupData {
     y: f32,
     dx: f32,
     dy: f32,
+    parent: Option<usize>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -128,9 +129,9 @@ fn main() {
 
     eprintln!("writing result");
     {
-        let rect = &graph.groups.last().unwrap();
-        let width = rect.dx;
-        let height = rect.dy;
+        let rect = &graph.groups.iter().find(|g| g.parent.is_none()).unwrap();
+        let width = rect.dx / scale;
+        let height = rect.dy / scale;
         let margin = 10.;
         println!(
             "<svg version=\"1.1\" width=\"{}\" height=\"{}\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">",
@@ -145,7 +146,7 @@ fn main() {
     }
     for group in graph.groups {
         println!(
-            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"none\" stroke=\"black\" />",
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"none\" stroke=\"black\" stroke-width=\"3\"/>",
             group.x - group.dx / 2.,
             group.y - group.dy / 2.,
             group.dx,
